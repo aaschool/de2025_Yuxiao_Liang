@@ -1,0 +1,118 @@
+#include <ESP8266WiFi.h>
+#include <ESP8266HTTPClient.h>
+#include <ArduinoJson.h>
+#include <Adafruit_NeoPixel.h>
+
+// Wi-Fi Credentials
+const char* ssid = "Your_SSID";        // Replace with your Wi-Fi SSID
+const char* password = "Your_PASSWORD"; // Replace with your Wi-Fi password
+
+// Server URL
+const char* serverUrl = "http://yourgamebackend.com/api/state"; // Replace with your actual server URL
+
+// LED Strip Configuration
+#define LED_PIN 2          // GPIO pin for LED data
+#define NUM_LEDS 30        // Number of LEDs in the strip
+Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
+
+// Button Configuration (Optional)
+#define BUTTON_PIN 4       // GPIO pin for button input
+bool manualToggle = false;
+
+WiFiClient client;
+
+void setup() {
+    Serial.begin(115200);
+    
+    // Initialize LED Strip
+    strip.begin();
+    strip.show(); // Initialize all LEDs to off
+    
+    // Connect to Wi-Fi
+    WiFi.begin(ssid, password);
+    Serial.print("Connecting to Wi-Fi");
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        Serial.print(".");
+    }
+    Serial.println("\nConnected to Wi-Fi");
+
+    // Initialize button (if used)
+    pinMode(BUTTON_PIN, INPUT_PULLUP);
+}
+
+void loop() {
+    // Check if button is pressed to toggle manual mode
+    if (digitalRead(BUTTON_PIN) == LOW) {
+        manualToggle = !manualToggle;
+        delay(500); // Debounce delay
+    }
+
+    // If in manual mode, cycle through colors
+    if (manualToggle) {
+        cycleColors();
+    } else {
+        fetchAndUpdateColor();
+    }
+    
+    delay(10000); // Fetch update every 10 seconds
+}
+
+void fetchAndUpdateColor() {
+    if (WiFi.status() == WL_CONNECTED) {
+        HTTPClient http;
+        http.begin(client, serverUrl);
+        int httpCode = http.GET();
+
+        if (httpCode == 200) {
+            String payload = http.getString();
+            Serial.println("Received JSON: " + payload);
+            parseAndSetSkyColor(payload);
+        } else {
+            Serial.println("HTTP Request failed, code: " + String(httpCode));
+        }
+
+        http.end();
+    } else {
+        Serial.println("Wi-Fi Disconnected!");
+    }
+}
+
+void parseAndSetSkyColor(String json) {
+    DynamicJsonDocument doc(512);
+    DeserializationError error = deserializeJson(doc, json);
+
+    if (error) {
+        Serial.println("JSON Parsing Error!");
+        return;
+    }
+
+    String state = doc["governance_state"];
+    
+    if (state == "harmony") {
+        setSkyColor(0, 0, 255);  // Blue
+    } else if (state == "tension") {
+        setSkyColor(255, 165, 0);  // Orange
+    } else if (state == "unrest") {
+        setSkyColor(128, 128, 128);  // Gray
+    } else {
+        setSkyColor(255, 255, 255);  // Default to white
+    }
+}
+
+void setSkyColor(uint8_t r, uint8_t g, uint8_t b) {
+    for (int i = 0; i < strip.numPixels(); i++) {
+        strip.setPixelColor(i, strip.Color(r, g, b));
+    }
+    strip.show();
+}
+
+// Optional function: Cycle colors manually if button is pressed
+void cycleColors() {
+    setSkyColor(0, 0, 255);  // Blue
+    delay(2000);
+    setSkyColor(255, 165, 0);  // Orange
+    delay(2000);
+    setSkyColor(128, 128, 128);  // Gray
+    delay(2000);
+}
