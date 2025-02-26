@@ -1,0 +1,76 @@
+#include <ESP8266WiFi.h>
+#include <ESP8266HTTPClient.h>
+#include <ArduinoJson.h>
+
+const char* ssid = "WiFi SSID";
+const char* password = "WiFi Password";
+const char* apiEndpoint = "APP_SCRIPT_URL";
+
+WiFiClient client;
+HTTPClient http;
+
+const int ledPin = D7;  // LED connected to D7
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(ledPin, OUTPUT);
+  
+  // 🔹 Quick test to check LED is functional
+  digitalWrite(ledPin, HIGH);
+  delay(1000);
+  digitalWrite(ledPin, LOW);
+
+  Serial.print("Connecting to WiFi");
+  WiFi.begin(ssid, password);
+  
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.print(".");
+  }
+  Serial.println("\nConnected to WiFi!");
+}
+
+void loop() {
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("Fetching Data from API...");
+
+    http.begin(client, apiEndpoint);
+    int httpCode = http.GET();
+    
+    if (httpCode == HTTP_CODE_OK) {
+      String payload = http.getString();
+      Serial.println("Received JSON: " + payload);
+      
+      DynamicJsonDocument doc(256);
+      deserializeJson(doc, payload);
+      
+      String scenario = doc["scenario"];
+      String color = doc["color"];
+      
+      Serial.print("Scenario: ");
+      Serial.println(scenario);
+      Serial.print("Color: ");
+      Serial.println(color);
+      
+      // LED Logic
+      if (color == "Blue") {
+        Serial.println("🔹 Turning ON LED");
+        digitalWrite(ledPin, HIGH);
+      } else {
+        Serial.println("🔸 Turning OFF LED");
+        digitalWrite(ledPin, LOW);
+      }
+      
+    } else {
+      Serial.print("❌ Error in HTTP request, Code: ");
+      Serial.println(httpCode);
+    }
+    
+    http.end();
+  } else {
+    Serial.println("❌ WiFi Disconnected! Reconnecting...");
+    WiFi.begin(ssid, password);
+  }
+  
+  delay(5000); // Fetch data every 5 seconds
+}
