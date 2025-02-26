@@ -1,0 +1,39 @@
+// Google Apps Script code
+function doPost(e) {
+  var sheet = SpreadsheetApp.openById("ID").getActiveSheet();
+  var data = JSON.parse(e.postData.contents);
+  
+  // Save selections to sheet
+  sheet.appendRow([new Date(), JSON.stringify(data)]);
+  
+  return ContentService.createTextOutput(JSON.stringify({
+    'status': 'success'
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function doGet(e) {
+  var sheet = SpreadsheetApp.openById("ID").getActiveSheet();
+  var situations = ['Intense', 'Mournful', 'Balanced', 'Disordered'];
+
+  if (sheet.getLastRow() < 2) {
+    return ContentService.createTextOutput(JSON.stringify({
+      'error': 'No data available',
+      'scenario': 'None',
+      'color': 'None'
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // Randomly select a scenario
+  var randomScenario = situations[Math.floor(Math.random() * situations.length)];
+  
+  // Get the corresponding color from the latest saved selections
+  var lastRow = sheet.getLastRow();
+  var lastSelections = JSON.parse(sheet.getRange(lastRow, 2).getValue());
+
+  var color = lastSelections[randomScenario] || 'White'; // Default color if missing
+
+  return ContentService.createTextOutput(JSON.stringify({
+    'scenario': randomScenario,
+    'color': color
+  })).setMimeType(ContentService.MimeType.JSON);
+}
